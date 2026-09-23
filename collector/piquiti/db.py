@@ -131,21 +131,44 @@ class Store:
         return len(updates)
 
 
+# Held for the length of a transaction so the live collector and a rebuild
+# never fold the same rows into the session table at the same time.
+SESSION_LOCK = 0x5E55_1011
+
+ACTIVITY_SQL = """
+    SELECT q.seq, q.ts, host(q.client_ip), coalesce(i.app, i.root_domain, q.domain),
+           q.blocked OR coalesce(i.background, false)
+    FROM dns_query q LEFT JOIN domain_info i ON i.domain = q.domain
+"""
+
+
+def write_sessions(cur: psycopg.Cursor, changed: list[Session], tail: timedelta) -> None:
+    for s in changed:
+        if s.original_start and s.original_start != s.start_ts:
+            cur.execute(
+                "DELETE FROM session WHERE client_ip=%s AND service=%s AND start_ts=%s",
+                (s.client_ip, s.service, s.original_start),
+            )
+        cur.execute(
+            """
+            INSERT INTO session VALUES (%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (client_ip, service, start_ts) DO UPDATE
+                SET end_ts = excluded.end_ts, last_query = excluded.last_query,
+                    query_count = excluded.query_count
+            """,
+            (s.client_ip, s.service, s.start_ts, s.end_ts(tail), s.last_query, s.query_count),
+        )
+
+
 def update_sessions(conn: psycopg.Connection, gap: timedelta, tail: timedelta, chunk: int = 200_000) -> int:
     """Fold queries inserted since the last run into the session table."""
     total = 0
     while True:
+        conn.execute("SELECT pg_advisory_xact_lock(%s)", (SESSION_LOCK,))
         last_seq = int(get_state(conn, "session_seq", "0"))
-        rows = conn.execute(
-            """
-            SELECT q.seq, q.ts, host(q.client_ip), coalesce(i.app, i.root_domain, q.domain),
-                   q.blocked OR coalesce(i.background, false)
-            FROM dns_query q LEFT JOIN domain_info i ON i.domain = q.domain
-            WHERE q.seq > %s ORDER BY q.seq LIMIT %s
-            """,
-            (last_seq, chunk),
-        ).fetchall()
+        rows = conn.execute(ACTIVITY_SQL + " WHERE q.seq > %s ORDER BY q.seq LIMIT %s", (last_seq, chunk)).fetchall()
         if not rows:
+            conn.commit()  # releases the lock
             return total
         activity = [(ts, ip, svc) for _, ts, ip, svc, skip in rows if not skip]
         if activity:
@@ -162,21 +185,7 @@ def update_sessions(conn: psycopg.Connection, gap: timedelta, tail: timedelta, c
                 latest[(ip, svc)] = Session(ip, svc, start, last, n, original_start=start)
             changed = sessionize(activity, latest, gap)
             with conn.cursor() as cur:
-                for s in changed:
-                    if s.original_start and s.original_start != s.start_ts:
-                        cur.execute(
-                            "DELETE FROM session WHERE client_ip=%s AND service=%s AND start_ts=%s",
-                            (s.client_ip, s.service, s.original_start),
-                        )
-                    cur.execute(
-                        """
-                        INSERT INTO session VALUES (%s,%s,%s,%s,%s,%s)
-                        ON CONFLICT (client_ip, service, start_ts) DO UPDATE
-                            SET end_ts = excluded.end_ts, last_query = excluded.last_query,
-                                query_count = excluded.query_count
-                        """,
-                        (s.client_ip, s.service, s.start_ts, s.end_ts(tail), s.last_query, s.query_count),
-                    )
+                write_sessions(cur, changed, tail)
             total += len(changed)
         set_state(conn, "session_seq", str(rows[-1][0]))
         conn.commit()
@@ -184,7 +193,26 @@ def update_sessions(conn: psycopg.Connection, gap: timedelta, tail: timedelta, c
             return total
 
 
-def reset_sessions(conn: psycopg.Connection) -> None:
-    conn.execute("TRUNCATE session")
-    set_state(conn, "session_seq", "0")
+def rebuild_sessions(conn: psycopg.Connection, gap: timedelta, tail: timedelta, chunk: int = 200_000) -> int:
+    """Rebuild the session table from every stored query, in time order.
+
+    update_sessions walks rows in insertion order, which is wrong for a full
+    rebuild once older history has been backfilled after newer rows. Runs as
+    one transaction, so dashboards keep the old sessions until it commits.
+    Returns the number of sessions written.
+    """
     conn.commit()
+    conn.execute("SELECT pg_advisory_xact_lock(%s)", (SESSION_LOCK,))
+    conn.execute("DELETE FROM session")  # not TRUNCATE: its lock would block dashboard reads
+    max_seq = conn.execute("SELECT coalesce(max(seq), 0) FROM dns_query").fetchone()[0]
+    latest: dict[tuple[str, str], Session] = {}
+    with conn.cursor(name="session_rebuild") as rows, conn.cursor() as cur:
+        rows.execute(ACTIVITY_SQL + " WHERE q.seq <= %s ORDER BY q.ts, q.seq", (max_seq,))
+        while batch := rows.fetchmany(chunk):
+            activity = [(ts, ip, svc) for _, ts, ip, svc, skip in batch if not skip]
+            write_sessions(cur, sessionize(activity, latest, gap), tail)
+    # Rows inserted after max_seq are picked up by the next update_sessions.
+    set_state(conn, "session_seq", str(max_seq))
+    count = conn.execute("SELECT count(*) FROM session").fetchone()[0]
+    conn.commit()
+    return count

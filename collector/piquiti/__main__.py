@@ -112,8 +112,7 @@ def cmd_backfill(args) -> None:
     store.upsert_devices({}, {ip: None for (ip,) in conn.execute("SELECT DISTINCT host(client_ip) FROM dns_query")})
     conn.commit()
     log.info("rebuilding sessions")
-    db.reset_sessions(conn)
-    db.update_sessions(conn, GAP, TAIL)
+    log.info("%d sessions written", db.rebuild_sessions(conn, GAP, TAIL))
 
 
 def cmd_remap(args) -> None:
@@ -123,14 +122,12 @@ def cmd_remap(args) -> None:
     store.upsert_devices(load_devices(CONFIG_DIR / "devices.yaml"), {})
     conn.commit()
     log.info("re-labelled %d domains; rebuilding sessions", n)
-    db.reset_sessions(conn)
-    db.update_sessions(conn, GAP, TAIL)
+    log.info("%d sessions written", db.rebuild_sessions(conn, GAP, TAIL))
 
 
 def cmd_resessionize(args) -> None:
     conn = connect()
-    db.reset_sessions(conn)
-    log.info("%d sessions written", db.update_sessions(conn, GAP, TAIL))
+    log.info("%d sessions written", db.rebuild_sessions(conn, GAP, TAIL))
 
 
 def main() -> None:
