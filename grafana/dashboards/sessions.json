@@ -1,0 +1,348 @@
+{
+  "uid": "piquiti-sessions",
+  "title": "Pi-quiti / Sessions",
+  "description": "Estimated activity windows. A session is a run of lookups for one service on one device with no gap longer than SESSION_GAP_MINUTES.",
+  "tags": [
+    "pi-quiti"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "device",
+        "label": "Device",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "piquiti-pg"
+        },
+        "query": "SELECT name FROM device ORDER BY 1",
+        "definition": "SELECT name FROM device ORDER BY 1",
+        "refresh": 1,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "piquiti-pg"
+        },
+        "query": "SELECT DISTINCT service FROM session ORDER BY 1",
+        "definition": "SELECT DISTINCT service FROM session ORDER BY 1",
+        "refresh": 1,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "min_queries",
+        "label": "Min lookups per session",
+        "type": "textbox",
+        "query": "3",
+        "current": {
+          "text": "3",
+          "value": "3"
+        }
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Pi-quiti",
+      "type": "dashboards",
+      "tags": [
+        "pi-quiti"
+      ],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ],
+  "panels": [
+    {
+      "type": "text",
+      "title": "How to read this",
+      "options": {
+        "mode": "markdown",
+        "content": "Pi-hole sees **DNS lookups**, not connections. Sessions are stitched from bursts of lookups, so they are estimates: a long video stream that keeps reusing a connection can look shorter, and apps that poll in the background can look like use. Blocked lookups and services flagged `background` in `config/services.override.yaml` are excluded."
+      },
+      "datasource": null,
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      }
+    },
+    {
+      "type": "state-timeline",
+      "title": "Timeline (top 25 device / service pairs by time)",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH s AS (SELECT * FROM v_session WHERE end_ts > $__timeFrom() AND start_ts < $__timeTo() AND query_count >= ${min_queries} AND device IN (${device:sqlstring}) AND service IN (${service:sqlstring})),\ntop AS (SELECT device, service FROM s GROUP BY 1, 2 ORDER BY sum(duration) DESC LIMIT 25)\nSELECT t AS time, metric, value FROM (\n  SELECT greatest(start_ts, $__timeFrom()) AS t, device || ' / ' || service AS metric, 1 AS value FROM s JOIN top USING (device, service)\n  UNION ALL\n  SELECT least(end_ts, $__timeTo()), device || ' / ' || service, 0 FROM s JOIN top USING (device, service)\n) x ORDER BY 1"
+        }
+      ],
+      "options": {
+        "showValue": "never",
+        "rowHeight": 0.8,
+        "mergeValues": true,
+        "alignValue": "left",
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0,
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "idle",
+                  "color": "transparent"
+                },
+                "1": {
+                  "text": "active",
+                  "color": "blue"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 24,
+        "h": 16
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Estimated time by service",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT service AS name, extract(epoch FROM sum(duration)) AS value FROM v_session WHERE end_ts > $__timeFrom() AND start_ts < $__timeTo() AND query_count >= ${min_queries} AND device IN (${device:sqlstring}) AND service IN (${service:sqlstring}) GROUP BY 1 ORDER BY 2 DESC LIMIT 12"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "valueMode": "text",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 22,
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "/^value$/",
+          "values": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "min": 0,
+          "links": []
+        },
+        "overrides": []
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 12,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Estimated time by device",
+      "description": "Services overlap, so this can exceed wall-clock time.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT device AS name, extract(epoch FROM sum(duration)) AS value FROM v_session WHERE end_ts > $__timeFrom() AND start_ts < $__timeTo() AND query_count >= ${min_queries} AND device IN (${device:sqlstring}) AND service IN (${service:sqlstring}) GROUP BY 1 ORDER BY 2 DESC LIMIT 15"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "valueMode": "text",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 22,
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "/^value$/",
+          "values": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "min": 0,
+          "links": []
+        },
+        "overrides": []
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 12,
+        "y": 19,
+        "w": 12,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Longest sessions",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT device AS \"Device\", service AS \"Service\", start_ts AS \"Start\", end_ts AS \"End\",\n       extract(epoch FROM duration) AS \"Duration\", query_count AS \"Lookups\"\nFROM v_session WHERE end_ts > $__timeFrom() AND start_ts < $__timeTo() AND query_count >= ${min_queries} AND device IN (${device:sqlstring}) AND service IN (${service:sqlstring}) ORDER BY duration DESC LIMIT 100"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    }
+  ]
+}

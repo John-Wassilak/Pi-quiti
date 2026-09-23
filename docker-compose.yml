@@ -1,0 +1,59 @@
+name: piquiti
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: piquiti
+      POSTGRES_USER: piquiti
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U piquiti -d piquiti"]
+      interval: 5s
+      retries: 20
+
+  collector:
+    build: ./collector
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://piquiti:${POSTGRES_PASSWORD}@postgres/piquiti
+      PIHOLE_URL: ${PIHOLE_URL}
+      PIHOLE_PASSWORD: ${PIHOLE_PASSWORD}
+      PIHOLE_VERIFY_TLS: ${PIHOLE_VERIFY_TLS:-true}
+      TZ: ${TZ:-UTC}
+      POLL_SECONDS: ${POLL_SECONDS:-60}
+      INITIAL_HOURS: ${INITIAL_HOURS:-24}
+      SESSION_GAP_MINUTES: ${SESSION_GAP_MINUTES:-10}
+      SESSION_TAIL_MINUTES: ${SESSION_TAIL_MINUTES:-2}
+    volumes:
+      - ./config:/config:ro
+      - ./data:/data
+
+  grafana:
+    image: grafana/grafana-oss:12.1.0
+    restart: unless-stopped
+    depends_on: [postgres]
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/overview.json
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana:/var/lib/grafana
+
+volumes:
+  pgdata:
+  grafana:

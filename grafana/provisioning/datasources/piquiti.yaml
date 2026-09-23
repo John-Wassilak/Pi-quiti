@@ -1,0 +1,15 @@
+apiVersion: 1
+datasources:
+  - name: Pi-quiti
+    uid: piquiti-pg
+    type: grafana-postgresql-datasource
+    url: postgres:5432
+    user: grafana
+    isDefault: true
+    jsonData:
+      database: piquiti
+      sslmode: disable
+      postgresVersion: 1700
+      timescaledb: false
+    secureJsonData:
+      password: $GRAFANA_DB_PASSWORD

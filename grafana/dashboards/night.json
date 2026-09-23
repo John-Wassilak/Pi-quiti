@@ -1,0 +1,611 @@
+{
+  "uid": "piquiti-night",
+  "title": "Pi-quiti / Night watch",
+  "description": "What talks while everyone is asleep. Quiet hours are local time; the window may wrap midnight.",
+  "tags": [
+    "pi-quiti"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "quiet_start",
+        "label": "Quiet from (hour)",
+        "type": "textbox",
+        "query": "0",
+        "current": {
+          "text": "0",
+          "value": "0"
+        },
+        "description": "0-23, local time"
+      },
+      {
+        "name": "quiet_end",
+        "label": "Quiet until (hour)",
+        "type": "textbox",
+        "query": "6",
+        "current": {
+          "text": "6",
+          "value": "6"
+        }
+      },
+      {
+        "name": "device",
+        "label": "Device",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "piquiti-pg"
+        },
+        "query": "SELECT name FROM device ORDER BY 1",
+        "definition": "SELECT name FROM device ORDER BY 1",
+        "refresh": 1,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "include_background",
+        "label": "Background chatter",
+        "type": "custom",
+        "query": "false,true",
+        "current": {
+          "text": "true",
+          "value": "true"
+        },
+        "options": [
+          {
+            "text": "false",
+            "value": "false",
+            "selected": false
+          },
+          {
+            "text": "true",
+            "value": "true",
+            "selected": true
+          }
+        ]
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Pi-quiti",
+      "type": "dashboards",
+      "tags": [
+        "pi-quiti"
+      ],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Lookups in quiet hours",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(*) FROM v_query WHERE $__timeFilter(ts) AND device IN (${device:sqlstring}) AND (${include_background} OR NOT background) AND in_quiet_hours(ts, ${quiet_start}, ${quiet_end})"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Share of all lookups",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT 100.0 * count(*) FILTER (WHERE in_quiet_hours(ts, ${quiet_start}, ${quiet_end})) / greatest(count(*), 1) FROM v_query WHERE $__timeFilter(ts) AND device IN (${device:sqlstring}) AND (${include_background} OR NOT background)"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Devices awake",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(DISTINCT client_ip) FROM v_query WHERE $__timeFilter(ts) AND device IN (${device:sqlstring}) AND (${include_background} OR NOT background) AND in_quiet_hours(ts, ${quiet_start}, ${quiet_end})"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Blocked in quiet hours",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(*) FROM v_query WHERE $__timeFilter(ts) AND device IN (${device:sqlstring}) AND (${include_background} OR NOT background) AND in_quiet_hours(ts, ${quiet_start}, ${quiet_end}) AND blocked"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Busiest services at night",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT service AS name, count(*) AS value FROM v_query WHERE $__timeFilter(ts) AND device IN (${device:sqlstring}) AND (${include_background} OR NOT background) AND in_quiet_hours(ts, ${quiet_start}, ${quiet_end}) AND NOT blocked GROUP BY 1 ORDER BY 2 DESC LIMIT 15"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "valueMode": "text",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 22,
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "/^value$/",
+          "values": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open service",
+              "url": "/d/piquiti-service?var-service=${__value.raw}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Devices at night",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT device AS \"Device\", count(*) AS \"Lookups\", count(DISTINCT service) AS \"Services\",\n       mode() WITHIN GROUP (ORDER BY service) AS \"Most looked up\", max(ts) AS \"Latest\"\nFROM v_query WHERE $__timeFilter(ts) AND device IN (${device:sqlstring}) AND (${include_background} OR NOT background) AND in_quiet_hours(ts, ${quiet_start}, ${quiet_end}) GROUP BY 1 ORDER BY 2 DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Device"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open device",
+                    "url": "/d/piquiti-device?var-device=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Service x hour of day (whole day, for contrast)",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT r AS \"Service\",\n  sum(n) FILTER (WHERE h = 0) AS \"00\",\n  sum(n) FILTER (WHERE h = 1) AS \"01\",\n  sum(n) FILTER (WHERE h = 2) AS \"02\",\n  sum(n) FILTER (WHERE h = 3) AS \"03\",\n  sum(n) FILTER (WHERE h = 4) AS \"04\",\n  sum(n) FILTER (WHERE h = 5) AS \"05\",\n  sum(n) FILTER (WHERE h = 6) AS \"06\",\n  sum(n) FILTER (WHERE h = 7) AS \"07\",\n  sum(n) FILTER (WHERE h = 8) AS \"08\",\n  sum(n) FILTER (WHERE h = 9) AS \"09\",\n  sum(n) FILTER (WHERE h = 10) AS \"10\",\n  sum(n) FILTER (WHERE h = 11) AS \"11\",\n  sum(n) FILTER (WHERE h = 12) AS \"12\",\n  sum(n) FILTER (WHERE h = 13) AS \"13\",\n  sum(n) FILTER (WHERE h = 14) AS \"14\",\n  sum(n) FILTER (WHERE h = 15) AS \"15\",\n  sum(n) FILTER (WHERE h = 16) AS \"16\",\n  sum(n) FILTER (WHERE h = 17) AS \"17\",\n  sum(n) FILTER (WHERE h = 18) AS \"18\",\n  sum(n) FILTER (WHERE h = 19) AS \"19\",\n  sum(n) FILTER (WHERE h = 20) AS \"20\",\n  sum(n) FILTER (WHERE h = 21) AS \"21\",\n  sum(n) FILTER (WHERE h = 22) AS \"22\",\n  sum(n) FILTER (WHERE h = 23) AS \"23\"\nFROM (SELECT service AS r, local_hour(ts) AS h, count(*) AS n FROM v_query WHERE $__timeFilter(ts) AND device IN (${device:sqlstring}) AND (${include_background} OR NOT background) AND NOT blocked GROUP BY 1, 2) x\nGROUP BY 1 ORDER BY sum(n) DESC LIMIT 20"
+        }
+      ],
+      "description": "Lookups per hour of day (local time), summed over the selected range. Darker = busier.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "basic"
+            },
+            "align": "center",
+            "width": 44
+          },
+          "color": {
+            "mode": "continuous-blues"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Service"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          }
+        ]
+      },
+      "id": 7,
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 14
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Device x hour of day",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT r AS \"Device\",\n  sum(n) FILTER (WHERE h = 0) AS \"00\",\n  sum(n) FILTER (WHERE h = 1) AS \"01\",\n  sum(n) FILTER (WHERE h = 2) AS \"02\",\n  sum(n) FILTER (WHERE h = 3) AS \"03\",\n  sum(n) FILTER (WHERE h = 4) AS \"04\",\n  sum(n) FILTER (WHERE h = 5) AS \"05\",\n  sum(n) FILTER (WHERE h = 6) AS \"06\",\n  sum(n) FILTER (WHERE h = 7) AS \"07\",\n  sum(n) FILTER (WHERE h = 8) AS \"08\",\n  sum(n) FILTER (WHERE h = 9) AS \"09\",\n  sum(n) FILTER (WHERE h = 10) AS \"10\",\n  sum(n) FILTER (WHERE h = 11) AS \"11\",\n  sum(n) FILTER (WHERE h = 12) AS \"12\",\n  sum(n) FILTER (WHERE h = 13) AS \"13\",\n  sum(n) FILTER (WHERE h = 14) AS \"14\",\n  sum(n) FILTER (WHERE h = 15) AS \"15\",\n  sum(n) FILTER (WHERE h = 16) AS \"16\",\n  sum(n) FILTER (WHERE h = 17) AS \"17\",\n  sum(n) FILTER (WHERE h = 18) AS \"18\",\n  sum(n) FILTER (WHERE h = 19) AS \"19\",\n  sum(n) FILTER (WHERE h = 20) AS \"20\",\n  sum(n) FILTER (WHERE h = 21) AS \"21\",\n  sum(n) FILTER (WHERE h = 22) AS \"22\",\n  sum(n) FILTER (WHERE h = 23) AS \"23\"\nFROM (SELECT device AS r, local_hour(ts) AS h, count(*) AS n FROM v_query WHERE $__timeFilter(ts) AND device IN (${device:sqlstring}) AND (${include_background} OR NOT background) GROUP BY 1, 2) x\nGROUP BY 1 ORDER BY sum(n) DESC LIMIT 30"
+        }
+      ],
+      "description": "Lookups per hour of day (local time), summed over the selected range. Darker = busier.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "basic"
+            },
+            "align": "center",
+            "width": 44
+          },
+          "color": {
+            "mode": "continuous-blues"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Device"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          }
+        ]
+      },
+      "id": 8,
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    },
+    {
+      "type": "table",
+      "title": "New root domains first seen in this range",
+      "description": "A new IoT device phoning home usually shows up here first.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "piquiti-pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT root_domain AS \"Root domain\", service AS \"Service\", category AS \"Category\", first_seen AS \"First seen\"\nFROM (\n  SELECT root_domain, min(coalesce(app, root_domain)) AS service, min(category) AS category,\n         min(first_seen) AS first_seen\n  FROM domain_info GROUP BY 1\n) x\nWHERE $__timeFilter(first_seen)\nORDER BY 4 DESC LIMIT 200"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "piquiti-pg"
+      }
+    }
+  ]
+}

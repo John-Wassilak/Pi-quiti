@@ -1,0 +1,6 @@
+# Friendly names for clients, keyed by IP. These win over hostnames that
+# Pi-hole reports. Give devices DHCP reservations on the router so IPs stay put.
+#
+# 192.168.0.10: {name: Living room TV, owner: Family}
+# 192.168.0.23: {name: Alex's phone, owner: Alex}
+devices: {}

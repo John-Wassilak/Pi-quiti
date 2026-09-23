@@ -1,0 +1,47 @@
+# Local fixes on top of v2fly/domain-list-community.
+# Changes apply on collector restart; run `python -m piquiti remap` to
+# re-label domains already in the database.
+
+# Display names for v2fly list names. Unlisted names are title-cased
+# ("apple-tvplus" -> "Apple Tvplus").
+names:
+  youtube: YouTube
+  aws: AWS
+  icloud: iCloud
+  openai: OpenAI
+  tiktok: TikTok
+  primevideo: Prime Video
+  apple-tvplus: Apple TV+
+  apple-update: Apple Update
+  apple-music: Apple Music
+  alphabet: Google
+  meta: Meta
+  github: GitHub
+  linkedin: LinkedIn
+  whatsapp: WhatsApp
+  playstation: PlayStation
+  hbo: HBO Max
+  disney: Disney+
+  paypal: PayPal
+
+# Suffix match: an entry covers the domain and all its subdomains.
+# The most specific entry wins. Fields: app, company, category, background.
+domains:
+  tplinkcloud.com: {app: TP-Link, category: IoT}
+  tp-link.com: {app: TP-Link, category: IoT}
+  ring.com: {app: Ring, company: Amazon, category: IoT}
+  sonos.com: {app: Sonos, category: IoT}
+  roku.com: {app: Roku, category: Streaming & Entertainment}
+  weather.com: {app: Weather.com, category: News}
+  ntp.org: {app: NTP, category: Network, background: true}
+  in-addr.arpa: {app: Reverse DNS, category: Network, background: true}
+  ip6.arpa: {app: Reverse DNS, category: Network, background: true}
+  local: {app: Local network, category: Network, background: true}
+  lan: {app: Local network, category: Network, background: true}
+
+# Apps that chatter constantly in the background. They still count in
+# query totals but are left out of the Sessions dashboard.
+background:
+  - Reverse DNS
+  - Local network
+  - NTP
