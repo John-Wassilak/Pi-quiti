@@ -49,9 +49,28 @@ Requirements: Pi-hole **v6** and a machine with Docker Compose that can reach th
    docker compose up -d --build
    docker compose logs -f collector   # expect "fetched N queries"
    ```
-4. Open Grafana at `http://<server>:3000` (user `admin`, password `GRAFANA_ADMIN_PASSWORD`). The Overview dashboard is the home page.
+4. Open Grafana at `http://<server>:3000`, or at the proxy URL if you set one up (see [below](#behind-nginx-at-a-sub-path-optional)). Log in with user `admin` and password `GRAFANA_ADMIN_PASSWORD`. The Overview dashboard is the home page.
 
 On first start the collector pulls the last 24 hours (`INITIAL_HOURS`) from the API.
+
+### Behind nginx at a sub-path (optional)
+
+To serve Grafana at `http://<host>/pi-quiti/` on port 80 through an nginx already running on the host:
+
+1. Add to `.env`:
+   ```sh
+   GRAFANA_ROOT_URL=http://<host>/pi-quiti/
+   GRAFANA_SERVE_FROM_SUB_PATH=true
+   GRAFANA_BIND=127.0.0.1
+   ```
+2. Include [`deploy/nginx/pi-quiti.conf`](deploy/nginx/pi-quiti.conf) inside your `server { }` block, for example by copying it to `/etc/nginx/locations/` and adding `include /etc/nginx/locations/*.conf;` to the block.
+3. Apply:
+   ```sh
+   sudo nginx -t && sudo systemctl reload nginx
+   docker compose up -d grafana
+   ```
+
+With `GRAFANA_BIND=127.0.0.1`, port 3000 is no longer reachable from the LAN.
 
 ### Import history (optional)
 
@@ -144,6 +163,9 @@ docker compose run --rm collector resessionize   # e.g. after changing SESSION_G
 | `INITIAL_HOURS` | `24` | History to pull from the API on first start |
 | `SESSION_GAP_MINUTES` | `10` | Max gap inside one session |
 | `SESSION_TAIL_MINUTES` | `2` | Time added after a session's last lookup |
+| `GRAFANA_ROOT_URL` | Grafana default | Public URL when behind a proxy, e.g. `http://server/pi-quiti/` |
+| `GRAFANA_SERVE_FROM_SUB_PATH` | `false` | `true` when `GRAFANA_ROOT_URL` has a sub-path |
+| `GRAFANA_BIND` | `0.0.0.0` | Host address for port 3000; `127.0.0.1` restricts it to the proxy |
 
 ## Storage and performance
 
